@@ -15,3 +15,4 @@ root.AddChild(c1);
 root.AddChild(c2);
 ```
 ![demo pic](https://github.com/devskiddlee/sklye/blob/main/demo/window.png)
+(This project does not include a renderer, the example picture was rendered using DirectX11)
