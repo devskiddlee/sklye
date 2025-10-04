@@ -21,6 +21,8 @@ private:
     Layout* parent;
     std::vector<Layout*> children;
     float padding;
+    float maxWidth;
+    float maxHeight;
 public:
     void AddChild(Layout* child) {
         child->SetParent(this);
@@ -63,16 +65,28 @@ public:
         return type;
     }
 
-    Layout(LayoutType type, float padding) {
+    float GetMaxWidth() {
+        return maxWidth;
+    }
+
+    float GetMaxHeight() {
+        return maxHeight;
+    }
+
+    Layout(LayoutType type, float padding, float maxWidth = -1.f, float maxHeight = -1.f) {
         this->type = type;
         this->padding = padding;
         this->parent = nullptr;
+        this->maxWidth = maxWidth;
+        this->maxHeight = maxHeight;
     }
 
     Layout() {
         this->type = LayoutType_None;
         this->padding = 0;
         this->parent = nullptr;
+        this->maxWidth = -1.f;
+        this->maxHeight = -1.f;
     }
 };
 
@@ -117,6 +131,11 @@ namespace SKLE {
 
         float p = root->GetPadding();
 
+        if (root->GetMaxWidth() > 0 && windowWidth > root->GetMaxWidth())
+            windowWidth = root->GetMaxWidth();
+        if (root->GetMaxHeight() > 0 && windowHeight > root->GetMaxHeight())
+            windowHeight = root->GetMaxHeight();
+
         rootDimensions.x = x;
         rootDimensions.y = y;
         rootDimensions.w = windowWidth;
@@ -128,39 +147,110 @@ namespace SKLE {
         float contentW = windowWidth - 2 * p;
         float contentH = windowHeight - 2 * p;
 
-        size_t child_count = root->GetChildren().size();
-        float x_off = 0;
-        float y_off = 0;
-        float child_w = contentW;
-        float child_h = contentH;
+        const auto& children = root->GetChildren();
+        size_t child_count = children.size();
+        if (child_count == 0)
+            return dimensions;
 
         switch (root->GetType()) {
-        case LayoutType_Horizontal:
-            if (child_count > 0) {
-                child_w = (contentW - (child_count - 1) * p) / child_count;
-                x_off = child_w + p;
-            }
-            break;
+        case LayoutType_Horizontal: {
+            float totalGap = (child_count - 1) * p;
+            float usableWidth = contentW - totalGap;
 
-        case LayoutType_Vertical:
-            if (child_count > 0) {
-                child_h = (contentH - (child_count - 1) * p) / child_count;
-                y_off = child_h + p;
+            std::vector<float> widths(child_count, usableWidth / child_count);
+            float totalUsed = 0;
+            for (size_t i = 0; i < child_count; i++) {
+                float maxW = children[i]->GetMaxWidth();
+                if (maxW > 0 && widths[i] > maxW)
+                    widths[i] = maxW;
+                totalUsed += widths[i];
+            }
+
+            float leftover = usableWidth - totalUsed;
+            size_t unclampedCount = 0;
+            for (size_t i = 0; i < child_count - 1; i++) {
+                if (!(children[i]->GetMaxWidth() > 0 && widths[i] >= children[i]->GetMaxWidth()))
+                    unclampedCount++;
+            }
+
+            if (unclampedCount > 0 && leftover > 0) {
+                float add = leftover / unclampedCount;
+                for (size_t i = 0; i < child_count - 1; i++) {
+                    if (!(children[i]->GetMaxWidth() > 0 && widths[i] >= children[i]->GetMaxWidth()))
+                        widths[i] += add;
+                }
+            }
+
+            float sumWidths = 0;
+            for (size_t i = 0; i < child_count - 1; i++)
+                sumWidths += widths[i];
+            widths[child_count - 1] = usableWidth - sumWidths;
+
+            float curX = contentX;
+            for (size_t i = 0; i < child_count; i++) {
+                Layout* child = children[i];
+                for (auto& dim : AssembleLayoutDimensions(
+                    child,
+                    widths[i],
+                    contentH,
+                    curX,
+                    contentY))
+                {
+                    dimensions[dim.first] = dim.second;
+                }
+                curX += widths[i] + p;
             }
             break;
         }
 
-        for (int ix = 0; ix < root->GetChildren().size(); ix++) {
-            Layout* child = root->GetChildren()[ix];
-            for (auto& dim : AssembleLayoutDimensions(
-                child,
-                child_w,
-                child_h,
-                contentX + x_off * ix,
-                contentY + y_off * ix
-            )) {
-                dimensions[dim.first] = dim.second;
+        case LayoutType_Vertical: {
+            float totalGap = (child_count - 1) * p;
+            float usableHeight = contentH - totalGap;
+
+            std::vector<float> heights(child_count, usableHeight / child_count);
+            float totalUsed = 0;
+            for (size_t i = 0; i < child_count; i++) {
+                float maxH = children[i]->GetMaxHeight();
+                if (maxH > 0 && heights[i] > maxH)
+                    heights[i] = maxH;
+                totalUsed += heights[i];
             }
+
+            float leftover = usableHeight - totalUsed;
+            size_t unclampedCount = 0;
+            for (size_t i = 0; i < child_count - 1; i++) {
+                if (!(children[i]->GetMaxHeight() > 0 && heights[i] >= children[i]->GetMaxHeight()))
+                    unclampedCount++;
+            }
+            if (unclampedCount > 0 && leftover > 0) {
+                float add = leftover / unclampedCount;
+                for (size_t i = 0; i < child_count - 1; i++) {
+                    if (!(children[i]->GetMaxHeight() > 0 && heights[i] >= children[i]->GetMaxHeight()))
+                        heights[i] += add;
+                }
+            }
+
+            float sumHeights = 0;
+            for (size_t i = 0; i < child_count - 1; i++)
+                sumHeights += heights[i];
+            heights[child_count - 1] = usableHeight - sumHeights;
+
+            float curY = contentY;
+            for (size_t i = 0; i < child_count; i++) {
+                Layout* child = children[i];
+                for (auto& dim : AssembleLayoutDimensions(
+                    child,
+                    contentW,
+                    heights[i],
+                    contentX,
+                    curY))
+                {
+                    dimensions[dim.first] = dim.second;
+                }
+                curY += heights[i] + p;
+            }
+            break;
+        }
         }
 
         return dimensions;
