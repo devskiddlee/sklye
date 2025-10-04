@@ -8,9 +8,9 @@ auto c2 = Layout(LayoutType_Vertical, 20);
 c1.AddChild(Layout(LayoutType_None, 0));
 c1.AddChild(Layout(LayoutType_None, 0));
 c2.AddChild(Layout(LayoutType_None, 0));
-c2.AddChild(Layout(LayoutType_None, 0));
-c2.AddChild(Layout(LayoutType_None, 0));
-c2.AddChild(Layout(LayoutType_None, 0));
+c2.AddChild(Layout(LayoutType_None, 0, -1.f, 50.f));
+c2.AddChild(Layout(LayoutType_None, 0, -1.f, 50.f));
+c2.AddChild(Layout(LayoutType_None, 0, -1.f, 50.f));
 root.AddChild(c1);
 root.AddChild(c2);
 ```
